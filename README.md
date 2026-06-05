@@ -24,9 +24,3 @@ The literature search script is separate because it calls external scholarly API
 ```bash
 python code/01_search_literature.py
 ```
-
-## Notes
-
-- Model inputs and generated simulation data are in `code/data/`.
-- The literature script downloads only open-access PDFs reported by scholarly APIs.
-- The manuscript and downloaded PDFs are not included in this code repository.
