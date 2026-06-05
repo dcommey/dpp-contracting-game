@@ -21,11 +21,14 @@ def load_model_module():
     return module
 
 
-def latex_table(headers: Sequence[str], rows: Iterable[Sequence[str]], caption: str, label: str) -> str:
+def latex_table(headers: Sequence[str], rows: Iterable[Sequence[str]], caption: str, label: str, wide: bool = False) -> str:
     column_spec = "p{0.22\\linewidth}" + "p{0.34\\linewidth}" * (len(headers) - 1)
+    table_env = "table*" if wide else "table"
     lines = [
-        "\\begin{table}[htbp]",
+        f"\\begin{{{table_env}}}[t]",
         "\\centering",
+        "\\begingroup",
+        "\\setlength{\\tabcolsep}{3pt}",
         "\\small",
         f"\\caption{{{caption}}}",
         f"\\label{{{label}}}",
@@ -36,7 +39,7 @@ def latex_table(headers: Sequence[str], rows: Iterable[Sequence[str]], caption: 
     ]
     for row in rows:
         lines.append(" & ".join(row) + " \\\\")
-    lines.extend(["\\bottomrule", "\\end{tabular}", "\\end{table}", ""])
+    lines.extend(["\\bottomrule", "\\end{tabular}", "\\endgroup", f"\\end{{{table_env}}}", ""])
     return "\n".join(lines)
 
 
@@ -102,6 +105,7 @@ def write_equilibrium_conditions() -> None:
         rows,
         "Supplier equilibrium conditions in the DPP disclosure game.",
         "tab:equilibrium_conditions",
+        wide=True,
     )
     (TABLE_DIR / "table_equilibrium_conditions.tex").write_text(table, encoding="utf-8")
 

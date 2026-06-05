@@ -71,13 +71,17 @@ def latex_table(
     label: str,
     widths: Sequence[float] | None = None,
     raw_columns: set[int] | None = None,
+    wide: bool = False,
 ) -> str:
     widths = widths or [1 / len(headers)] * len(headers)
     raw_columns = raw_columns or set()
     column_spec = "@{}" + "".join(f"p{{{width:.2f}\\linewidth}}" for width in widths) + "@{}"
+    table_env = "table*" if wide else "table"
     lines = [
-        "\\begin{table}[htbp]",
+        f"\\begin{{{table_env}}}[t]",
         "\\centering",
+        "\\begingroup",
+        "\\setlength{\\tabcolsep}{3pt}",
         "\\small",
         f"\\caption{{{caption}}}",
         f"\\label{{{label}}}",
@@ -89,7 +93,7 @@ def latex_table(
     for row in rows:
         cells = [str(cell) if index in raw_columns else escape_latex(cell) for index, cell in enumerate(row)]
         lines.append(" & ".join(cells) + " \\\\")
-    lines.extend(["\\bottomrule", "\\end{tabular}", "\\end{table}", ""])
+    lines.extend(["\\bottomrule", "\\end{tabular}", "\\endgroup", f"\\end{{{table_env}}}", ""])
     return "\n".join(lines)
 
 
@@ -116,6 +120,7 @@ def write_model_parameter_table(model) -> None:
         "Model parameters and default values.",
         "tab:model_parameters",
         widths=[0.16, 0.14, 0.62],
+        wide=True,
     )
     (TABLE_DIR / "table_model_parameters.tex").write_text(table, encoding="utf-8")
 
@@ -124,21 +129,21 @@ def write_taxonomy_table() -> None:
     taxonomy = pd.read_csv(DATA_DIR / "contract_clause_taxonomy.csv")
     rows = taxonomy[["category", "contract_function", "model_parameter_link", "governance_rationale"]].values.tolist()
     lines = [
-        "\\begin{scriptsize}",
-        "\\begin{longtable}{@{}p{0.22\\linewidth}p{0.23\\linewidth}p{0.13\\linewidth}p{0.30\\linewidth}@{}}",
-        "\\caption{DPP contract clause taxonomy.}\\label{tab:contract_clause_taxonomy}\\\\",
+        "\\begin{table*}[t]",
+        "\\centering",
+        "\\begingroup",
+        "\\setlength{\\tabcolsep}{3pt}",
+        "\\tiny",
+        "\\caption{DPP contract clause taxonomy.}",
+        "\\label{tab:contract_clause_taxonomy}",
+        "\\begin{tabular}{@{}p{0.20\\textwidth}p{0.22\\textwidth}p{0.12\\textwidth}p{0.34\\textwidth}@{}}",
         "\\toprule",
         "Clause category & Contract function & Model link & Governance rationale \\\\",
         "\\midrule",
-        "\\endfirsthead",
-        "\\toprule",
-        "Clause category & Contract function & Model link & Governance rationale \\\\",
-        "\\midrule",
-        "\\endhead",
     ]
     for row in rows:
         lines.append(" & ".join(escape_latex(cell) for cell in row) + " \\\\")
-    lines.extend(["\\bottomrule", "\\end{longtable}", "\\end{scriptsize}", ""])
+    lines.extend(["\\bottomrule", "\\end{tabular}", "\\endgroup", "\\end{table*}", ""])
     table = "\n".join(lines)
     (TABLE_DIR / "table_contract_clause_taxonomy.tex").write_text(table, encoding="utf-8")
 
@@ -175,6 +180,12 @@ def write_literature_summary_table() -> None:
             "Uncertainty, monitoring costs, asset specificity, and uneven digital capabilities shape governance choices.",
             "Motivates capability $q$, support $S$, and monitoring cost $v$.",
         ),
+        (
+            "Target-journal supply-chain contracts and circularity",
+            "\\citet{kolagar2026material}; \\citet{doijjclepro201803046}; \\citet{doijjclepro2022135135}; \\citet{doijjclepro2021128629}",
+            "Journal of Cleaner Production research has used DPP readiness, game theory, coordination contracts, and empirical circular-supply-chain studies to examine sustainable supply-chain governance.",
+            "This paper extends that stream from DPP readiness, greening, and circular coordination to verifiable DPP data disclosure.",
+        ),
     ]
     table = latex_table(
         ["Literature stream", "Representative sources", "Main insight", "Use in model"],
@@ -183,6 +194,7 @@ def write_literature_summary_table() -> None:
         "tab:literature_summary",
         widths=[0.21, 0.22, 0.30, 0.19],
         raw_columns={1, 3},
+        wide=True,
     )
     (TABLE_DIR / "table_literature_summary.tex").write_text(table, encoding="utf-8")
 
@@ -219,6 +231,7 @@ def write_contract_comparison_table(results: pd.DataFrame) -> None:
         "tab:contract_scenario_comparison",
         widths=[0.21, 0.12, 0.12, 0.12, 0.17, 0.18],
         raw_columns={1, 2, 3},
+        wide=True,
     )
     (TABLE_DIR / "table_contract_scenario_comparison.tex").write_text(table, encoding="utf-8")
 
@@ -257,6 +270,7 @@ def write_managerial_implications_table() -> None:
         "Managerial implications from the DPP contracting game.",
         "tab:managerial_implications",
         widths=[0.24, 0.34, 0.34],
+        wide=True,
     )
     (TABLE_DIR / "table_managerial_implications.tex").write_text(table, encoding="utf-8")
 
@@ -294,7 +308,12 @@ def plot_game_tree() -> None:
     nx.draw_networkx_edges(graph, positions, arrows=True, arrowstyle="-|>", arrowsize=14, edge_color="#555555")
     node_colors = ["#2f5f8f" if node == "Buyer" else "#d7e6ef" if "\n" not in node else "#f1efe7" for node in graph.nodes]
     nx.draw_networkx_nodes(graph, positions, node_color=node_colors, node_size=2100, edgecolors="#333333", linewidths=0.8)
-    labels = {node: node.replace("Basic compliance", "Basic").replace("Audit/penalty", "Audit") for node in graph.nodes}
+    labels = {}
+    for node in graph.nodes:
+        if "\n" in node:
+            labels[node] = node.split("\n", maxsplit=1)[1]
+        else:
+            labels[node] = node.replace("Basic compliance", "Basic").replace("Audit/penalty", "Audit")
     nx.draw_networkx_labels(graph, positions, labels=labels, font_size=8.5)
     plt.axis("off")
     plt.tight_layout()

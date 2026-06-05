@@ -58,8 +58,17 @@ def base_grid_results(model) -> list[Dict[str, float | str]]:
 def heatmap_results(model) -> list[Dict[str, float | str]]:
     rows: list[Dict[str, float | str]] = []
 
+    # Keep participation feasible here so the heatmap isolates the deterrence threshold.
     audit_rows = (
-        {"p": float(p), "F": float(F), "q": 0.55, "c": 5.5, "r": 1.5}
+        {
+            "p": float(p),
+            "F": float(F),
+            "q": 0.80,
+            "c": 4.0,
+            "r": 0.60,
+            "contract_value": 8.0,
+            "outside_option": 3.0,
+        }
         for p in np.round(np.linspace(0.0, 0.90, 19), 3)
         for F in np.round(np.linspace(0.0, 10.0, 21), 3)
     )
@@ -72,11 +81,17 @@ def heatmap_results(model) -> list[Dict[str, float | str]]:
     )
     rows.extend(evaluate_rows(model, "capability_support_heatmap", "hybrid_support", support_rows))
 
-    region_rows = (
-        {"q": float(q), "r": float(r), "c": 5.8}
+    region_rows = [
+        {
+            "q": float(q),
+            "r": float(r),
+            "c": 4.5,
+            "contract_value": 7.5,
+            "outside_option": 3.5,
+        }
         for q in np.round(np.linspace(0.15, 1.20, 22), 3)
         for r in np.round(np.linspace(0.0, 4.0, 21), 3)
-    )
+    ]
     for contract in model.CONTRACTS:
         rows.extend(evaluate_rows(model, "equilibrium_region_grid", contract, region_rows))
 
