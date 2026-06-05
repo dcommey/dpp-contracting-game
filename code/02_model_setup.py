@@ -29,17 +29,23 @@ class ModelParameters:
     """Default parameters for one buyer-supplier dyad."""
 
     c: float = 5.0
+    cost_form: str = "hyperbolic"
+    cost_floor: float = 0.25
+    gamma: float = 2.0
     q: float = 0.60
     r: float = 1.50
     p: float = 0.05
     F: float = 1.00
+    F_bar: float = 10.0
     B: float = 0.25
     S: float = 0.00
+    S_bar: float = 3.0
     R: float = 12.0
     L: float = 5.0
     v: float = 1.0
     g: float = 0.80
     k: float = 0.0
+    m: float = 0.80
     alpha: float = 1.40
     lam: float = 0.45
     beta: float = 0.35
@@ -53,17 +59,23 @@ class ModelParameters:
 
 PARAMETER_DESCRIPTIONS = {
     "c": "Supplier baseline cost of collecting, structuring, and validating high-quality DPP data.",
+    "cost_form": "Disclosure cost form used in the simulation: hyperbolic main specification or affine robustness check.",
+    "cost_floor": "Lower bound on high-quality disclosure cost.",
+    "gamma": "Capability cost-reduction coefficient in the affine robustness specification.",
     "q": "Supplier data capability/readiness level.",
     "r": "Supplier commercial or IP risk from disclosure.",
     "p": "Probability of buyer audit or verification.",
     "F": "Penalty if low-quality disclosure is detected.",
+    "F_bar": "Maximum feasible penalty allowed by legal, relational, or enforceability constraints.",
     "B": "Buyer premium or preferred-supplier benefit for high-quality disclosure.",
     "S": "Buyer support or subsidy for supplier capability-building.",
+    "S_bar": "Maximum feasible buyer support level.",
     "R": "Buyer value from high-quality DPP data.",
     "L": "Buyer loss from poor data, circularity failure, or non-compliance.",
-    "v": "Buyer verification/audit cost.",
+    "v": "Buyer verification/audit cost coefficient.",
     "g": "Supplier reputational gain from verified high-quality disclosure.",
     "k": "Unit cost to the buyer of providing supplier support.",
+    "m": "Buyer cost coefficient for confidentiality and access-control protection.",
     "alpha": "Effectiveness of buyer support in reducing supplier disclosure cost.",
     "lam": "Low-quality disclosure cost share relative to high-quality disclosure cost.",
     "beta": "Residual buyer value from low-quality or partial DPP data.",
@@ -74,6 +86,8 @@ PARAMETER_DESCRIPTIONS = {
     "contract_value": "Supplier gross value from retaining the buyer relationship.",
     "outside_option": "Supplier payoff from non-disclosure and alternative opportunities.",
 }
+
+CONTRACT_INSTRUMENTS = ["p", "F", "B", "B_L", "S", "confidentiality"]
 
 
 CONTRACTS: Dict[str, Dict[str, float | str]] = {
@@ -123,7 +137,7 @@ CONTRACTS: Dict[str, Dict[str, float | str]] = {
 def apply_contract(
     contract_name: str,
     base: ModelParameters | None = None,
-    overrides: Mapping[str, float] | None = None,
+    overrides: Mapping[str, float | str] | None = None,
 ) -> ModelParameters:
     """Return parameters after applying a contract scenario and optional overrides."""
 
@@ -138,14 +152,30 @@ def apply_contract(
     params = replace(params, **scenario_values)
     if overrides:
         params = replace(params, **dict(overrides))
-    return params
+    return enforce_bounds(params)
+
+
+def enforce_bounds(params: ModelParameters) -> ModelParameters:
+    """Apply feasibility bounds to contract instruments."""
+
+    return replace(
+        params,
+        p=min(max(float(params.p), 0.0), 1.0),
+        F=min(max(float(params.F), 0.0), max(float(params.F_bar), 0.0)),
+        S=min(max(float(params.S), 0.0), max(float(params.S_bar), 0.0)),
+        confidentiality=min(max(float(params.confidentiality), 0.0), 1.0),
+    )
 
 
 def disclosure_costs(params: ModelParameters) -> Tuple[float, float]:
     """Return high-quality and low-quality disclosure costs."""
 
-    effective_capability = max(params.q + params.alpha * params.S, 1e-9)
-    high_cost = params.c / effective_capability
+    if params.cost_form == "affine":
+        high_cost = params.c - params.gamma * params.q - params.alpha * params.S
+    else:
+        effective_capability = max(params.q + params.alpha * params.S, 1e-9)
+        high_cost = params.c / effective_capability
+    high_cost = max(high_cost, params.cost_floor)
     low_cost = params.lam * high_cost
     return high_cost, low_cost
 
@@ -175,10 +205,11 @@ def buyer_payoffs(params: ModelParameters) -> Dict[str, float]:
     """Buyer payoffs conditional on the supplier disclosure strategy."""
 
     support_cost = params.k * params.S
-    audit_cost = params.p * params.v
+    audit_cost = params.v * params.p**2
+    confidentiality_cost = params.m * params.confidentiality**2
     return {
-        "high": params.R - params.B - audit_cost - support_cost,
-        "low": params.beta * params.R - params.L - audit_cost - params.B_L - support_cost
+        "high": params.R - params.B - audit_cost - support_cost - confidentiality_cost,
+        "low": params.beta * params.R - params.L - audit_cost - params.B_L - support_cost - confidentiality_cost
         + params.eta_penalty * params.p * params.F,
         "none": -params.L,
     }
@@ -194,7 +225,7 @@ def supplier_best_response(params: ModelParameters) -> str:
 def evaluate_contract(
     contract_name: str,
     base: ModelParameters | None = None,
-    overrides: Mapping[str, float] | None = None,
+    overrides: Mapping[str, float | str] | None = None,
 ) -> Dict[str, float | str]:
     """Evaluate one contract scenario under supplier best response."""
 
@@ -218,7 +249,7 @@ def evaluate_contract(
 def buyer_optimal_contract(
     contracts: Iterable[str] = CONTRACTS.keys(),
     base: ModelParameters | None = None,
-    overrides: Mapping[str, float] | None = None,
+    overrides: Mapping[str, float | str] | None = None,
 ) -> Dict[str, float | str]:
     """Return the contract that maximizes buyer payoff after supplier response."""
 
@@ -235,16 +266,18 @@ def make_parameter_grid() -> pd.DataFrame:
             for c in [3.5, 5.0, 6.5, 8.0]:
                 for r in [0.5, 1.5, 2.5, 3.5]:
                     for R in [9.0, 12.0, 15.0]:
-                        rows.append(
-                            {
-                                "experiment": "base_grid",
-                                "contract": contract,
-                                "q": q,
-                                "c": c,
-                                "r": r,
-                                "R": R,
-                            }
-                        )
+                        for outside_option in [4.2, 5.4]:
+                            rows.append(
+                                {
+                                    "experiment": "base_grid",
+                                    "contract": contract,
+                                    "q": q,
+                                    "c": c,
+                                    "r": r,
+                                    "R": R,
+                                    "outside_option": outside_option,
+                                }
+                            )
     return pd.DataFrame(rows)
 
 
@@ -258,11 +291,14 @@ def write_default_files() -> None:
         "descriptions": PARAMETER_DESCRIPTIONS,
         "contracts": CONTRACTS,
         "cost_functions": {
-            "high_quality_disclosure_cost": "C_H = c / (q + alpha*S)",
+            "high_quality_disclosure_cost": "C_H = max{c / (q + alpha*S), cost_floor}",
+            "affine_robustness_cost": "C_H = max{c - gamma*q - alpha*S, cost_floor}",
             "low_quality_disclosure_cost": "C_L = lambda*C_H",
             "expected_penalty_low_quality": "p*F",
+            "audit_cost": "A(p) = v*p^2",
             "commercial_risk_high": "r_H = r*(1-confidentiality)",
             "commercial_risk_low": "r_L = r_low_share*r_H",
+            "confidentiality_cost": "M(phi) = m*confidentiality^2",
         },
     }
     with (DATA_DIR / "model_parameters.yaml").open("w", encoding="utf-8") as handle:

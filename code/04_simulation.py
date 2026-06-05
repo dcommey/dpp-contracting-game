@@ -29,7 +29,7 @@ def evaluate_rows(
     model,
     experiment: str,
     contract: str,
-    rows: Iterable[Mapping[str, float]],
+    rows: Iterable[Mapping[str, float | str]],
 ) -> list[Dict[str, float | str]]:
     output = []
     for overrides in rows:
@@ -112,12 +112,79 @@ def heatmap_results(model) -> list[Dict[str, float | str]]:
     return rows
 
 
+def buyer_choice_results(model) -> list[Dict[str, float | str]]:
+    """Evaluate the buyer's optimal discrete contract across policy-relevant grids."""
+
+    rows: list[Dict[str, float | str]] = []
+
+    for q in np.round(np.linspace(0.20, 1.20, 21), 3):
+        for R in np.round(np.linspace(0.0, 14.0, 29), 3):
+            overrides = {
+                "q": float(q),
+                "R": float(R),
+                "c": 5.5,
+                "r": 1.8,
+                "k": 3.0,
+                "m": 3.0,
+                "outside_option": 4.4,
+            }
+            result = model.buyer_optimal_contract(overrides=overrides)
+            result["experiment"] = "buyer_choice_region"
+            result["optimal_contract"] = result["contract"]
+            result.update(overrides)
+            rows.append(result)
+
+    for k in np.round(np.linspace(0.1, 8.0, 25), 3):
+        for m in np.round(np.linspace(0.1, 8.0, 25), 3):
+            overrides = {
+                "k": float(k),
+                "m": float(m),
+                "q": 0.35,
+                "c": 7.0,
+                "r": 3.2,
+                "R": 5.0,
+                "L": 3.5,
+                "outside_option": 5.4,
+            }
+            result = model.buyer_optimal_contract(overrides=overrides)
+            result["experiment"] = "governance_cost_sensitivity"
+            result["optimal_contract"] = result["contract"]
+            result.update(overrides)
+            rows.append(result)
+
+    rng = np.random.default_rng(20260605)
+    for draw_id in range(1200):
+        cost_form = "affine" if draw_id >= 600 else "hyperbolic"
+        overrides: Dict[str, float | str] = {
+            "cost_form": cost_form,
+            "q": float(rng.uniform(0.20, 1.20)),
+            "c": float(rng.uniform(3.0, 8.5)),
+            "r": float(rng.uniform(0.3, 4.0)),
+            "R": float(rng.uniform(7.0, 20.0)),
+            "L": float(rng.uniform(3.0, 8.0)),
+            "v": float(rng.uniform(0.3, 3.0)),
+            "k": float(rng.uniform(0.1, 3.0)),
+            "m": float(rng.uniform(0.1, 3.0)),
+            "contract_value": float(rng.uniform(6.0, 9.5)),
+            "outside_option": float(rng.uniform(3.0, 6.5)),
+        }
+        result = model.buyer_optimal_contract(overrides=overrides)
+        result["experiment"] = "monte_carlo_buyer_choice"
+        result["optimal_contract"] = result["contract"]
+        result["draw_id"] = draw_id
+        result.update(overrides)
+        rows.append(result)
+
+    return rows
+
+
 def main() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     model = load_model_module()
     model.write_default_files()
     rows = base_grid_results(model)
     rows.extend(heatmap_results(model))
+    rows.extend(buyer_choice_results(model))
     results = pd.DataFrame(rows)
     results.to_csv(DATA_DIR / "simulation_results.csv", index=False)
     print(f"Wrote {len(results):,} simulation rows to {DATA_DIR / 'simulation_results.csv'}")

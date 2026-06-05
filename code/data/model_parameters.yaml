@@ -1,17 +1,23 @@
 model: sequential_buyer_supplier_dpp_contracting_game
 parameters:
   c: 5.0
+  cost_form: hyperbolic
+  cost_floor: 0.25
+  gamma: 2.0
   q: 0.6
   r: 1.5
   p: 0.05
   F: 1.0
+  F_bar: 10.0
   B: 0.25
   S: 0.0
+  S_bar: 3.0
   R: 12.0
   L: 5.0
   v: 1.0
   g: 0.8
   k: 0.0
+  m: 0.8
   alpha: 1.4
   lam: 0.45
   beta: 0.35
@@ -24,17 +30,25 @@ parameters:
 descriptions:
   c: Supplier baseline cost of collecting, structuring, and validating high-quality
     DPP data.
+  cost_form: 'Disclosure cost form used in the simulation: hyperbolic main specification
+    or affine robustness check.'
+  cost_floor: Lower bound on high-quality disclosure cost.
+  gamma: Capability cost-reduction coefficient in the affine robustness specification.
   q: Supplier data capability/readiness level.
   r: Supplier commercial or IP risk from disclosure.
   p: Probability of buyer audit or verification.
   F: Penalty if low-quality disclosure is detected.
+  F_bar: Maximum feasible penalty allowed by legal, relational, or enforceability
+    constraints.
   B: Buyer premium or preferred-supplier benefit for high-quality disclosure.
   S: Buyer support or subsidy for supplier capability-building.
+  S_bar: Maximum feasible buyer support level.
   R: Buyer value from high-quality DPP data.
   L: Buyer loss from poor data, circularity failure, or non-compliance.
-  v: Buyer verification/audit cost.
+  v: Buyer verification/audit cost coefficient.
   g: Supplier reputational gain from verified high-quality disclosure.
   k: Unit cost to the buyer of providing supplier support.
+  m: Buyer cost coefficient for confidentiality and access-control protection.
   alpha: Effectiveness of buyer support in reducing supplier disclosure cost.
   lam: Low-quality disclosure cost share relative to high-quality disclosure cost.
   beta: Residual buyer value from low-quality or partial DPP data.
@@ -84,8 +98,11 @@ contracts:
     k: 0.8
     confidentiality: 0.55
 cost_functions:
-  high_quality_disclosure_cost: C_H = c / (q + alpha*S)
+  high_quality_disclosure_cost: C_H = max{c / (q + alpha*S), cost_floor}
+  affine_robustness_cost: C_H = max{c - gamma*q - alpha*S, cost_floor}
   low_quality_disclosure_cost: C_L = lambda*C_H
   expected_penalty_low_quality: p*F
+  audit_cost: A(p) = v*p^2
   commercial_risk_high: r_H = r*(1-confidentiality)
   commercial_risk_low: r_L = r_low_share*r_H
+  confidentiality_cost: M(phi) = m*confidentiality^2

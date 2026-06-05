@@ -36,6 +36,9 @@ FIGURE_DIR = PROJECT_ROOT / "paper" / "figures"
 OUTCOME_CODE = {"none": 0, "low": 1, "high": 2}
 OUTCOME_LABELS = {0: "None", 1: "Low", 2: "High"}
 OUTCOME_COLORS = ["#8f8f8f", "#d8a24a", "#3b8f6b"]
+CONTRACT_ORDER = ["basic_compliance", "incentive_only", "audit_penalty", "hybrid_support"]
+CONTRACT_CODE = {name: index for index, name in enumerate(CONTRACT_ORDER)}
+CONTRACT_COLORS = ["#8f8f8f", "#d8a24a", "#4f7aa8", "#3b8f6b"]
 
 
 def load_module(file_name: str, module_name: str):
@@ -100,13 +103,11 @@ def latex_table(
 def ensure_inputs() -> pd.DataFrame:
     model = load_module("02_model_setup.py", "model_setup")
     model.write_default_files()
-    simulation_path = DATA_DIR / "simulation_results.csv"
-    if not simulation_path.exists():
-        simulation = load_module("04_simulation.py", "simulation")
-        simulation.main()
+    simulation = load_module("04_simulation.py", "simulation")
+    simulation.main()
     equilibrium = load_module("03_equilibrium_analysis.py", "equilibrium")
     equilibrium.main()
-    return pd.read_csv(simulation_path)
+    return pd.read_csv(DATA_DIR / "simulation_results.csv")
 
 
 def write_model_parameter_table(model) -> None:
@@ -123,6 +124,33 @@ def write_model_parameter_table(model) -> None:
         wide=True,
     )
     (TABLE_DIR / "table_model_parameters.tex").write_text(table, encoding="utf-8")
+
+
+def write_contract_parameter_table(model) -> None:
+    rows = []
+    for contract in CONTRACT_ORDER:
+        values = model.CONTRACTS[contract]
+        rows.append(
+            (
+                values["label"],
+                f"{values['p']:.2f}",
+                f"{values['F']:.2f}",
+                f"{values['B']:.2f}",
+                f"{values['B_L']:.2f}",
+                f"{values['S']:.2f}",
+                f"{values['confidentiality']:.2f}",
+            )
+        )
+    table = latex_table(
+        ["Contract", "$p$", "$F$", "$B$", "$B_L$", "$S$", "$\\phi$"],
+        rows,
+        "Discrete contract vectors used in the analytical and numerical model.",
+        "tab:contract_vectors",
+        widths=[0.28, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10],
+        raw_columns={1, 2, 3, 4, 5, 6},
+        wide=True,
+    )
+    (TABLE_DIR / "table_contract_vectors.tex").write_text(table, encoding="utf-8")
 
 
 def write_taxonomy_table() -> None:
@@ -213,7 +241,8 @@ def write_contract_comparison_table(results: pd.DataFrame) -> None:
         .reset_index()
     )
     rows = []
-    for _, row in grouped.iterrows():
+    grouped["contract_order"] = grouped["contract"].map(CONTRACT_CODE)
+    for _, row in grouped.sort_values("contract_order").iterrows():
         rows.append(
             (
                 row["contract_label"],
@@ -234,6 +263,35 @@ def write_contract_comparison_table(results: pd.DataFrame) -> None:
         wide=True,
     )
     (TABLE_DIR / "table_contract_scenario_comparison.tex").write_text(table, encoding="utf-8")
+
+
+def write_buyer_choice_summary_table(results: pd.DataFrame) -> None:
+    mc = results[results["experiment"] == "monte_carlo_buyer_choice"].copy()
+    rows = []
+    for cost_form, group in mc.groupby("cost_form"):
+        total = len(group)
+        counts = group["optimal_contract"].value_counts(normalize=True)
+        rows.append(
+            (
+                cost_form.capitalize(),
+                f"{100 * counts.get('basic_compliance', 0):.1f}\\%",
+                f"{100 * counts.get('incentive_only', 0):.1f}\\%",
+                f"{100 * counts.get('audit_penalty', 0):.1f}\\%",
+                f"{100 * counts.get('hybrid_support', 0):.1f}\\%",
+                f"{group['buyer_payoff'].mean():.2f}",
+                total,
+            )
+        )
+    table = latex_table(
+        ["Cost form", "Basic", "Incentive", "Audit", "Hybrid", "Mean buyer payoff", "$n$"],
+        rows,
+        "Monte Carlo buyer-optimal contract robustness by disclosure-cost specification.",
+        "tab:monte_carlo_buyer_choice",
+        widths=[0.16, 0.12, 0.13, 0.12, 0.12, 0.19, 0.08],
+        raw_columns={1, 2, 3, 4, 6},
+        wide=True,
+    )
+    (TABLE_DIR / "table_monte_carlo_buyer_choice.tex").write_text(table, encoding="utf-8")
 
 
 def write_managerial_implications_table() -> None:
@@ -313,7 +371,11 @@ def plot_game_tree() -> None:
         if "\n" in node:
             labels[node] = node.split("\n", maxsplit=1)[1]
         else:
-            labels[node] = node.replace("Basic compliance", "Basic").replace("Audit/penalty", "Audit")
+            labels[node] = (
+                node.replace("Basic compliance", "Basic")
+                .replace("Incentive-only", "Incentive")
+                .replace("Audit/penalty", "Audit")
+            )
     nx.draw_networkx_labels(graph, positions, labels=labels, font_size=8.5)
     plt.axis("off")
     plt.tight_layout()
@@ -326,21 +388,25 @@ def plot_outcome_heatmap(data: pd.DataFrame, x: str, y: str, title: str, path: P
     frame["outcome_code"] = frame["supplier_choice"].map(OUTCOME_CODE)
     pivot = frame.pivot_table(index=y, columns=x, values="outcome_code", aggfunc="mean")
     pivot = pivot.sort_index(ascending=False)
-    plt.figure(figsize=(8, 5.6))
+    plt.figure(figsize=(4.3, 3.3))
     ax = sns.heatmap(
         pivot,
         cmap=sns.color_palette(OUTCOME_COLORS, as_cmap=True),
         vmin=0,
         vmax=2,
-        cbar_kws={"ticks": [0.33, 1.0, 1.67]},
+        cbar_kws={"ticks": [0.33, 1.0, 1.67], "shrink": 0.82},
+        xticklabels=4,
+        yticklabels=4,
         linewidths=0.0,
     )
     colorbar = ax.collections[0].colorbar
     colorbar.set_ticklabels(["None", "Low", "High"])
-    ax.set_title(title, pad=12)
-    ax.set_xlabel(x)
-    ax.set_ylabel(y)
-    plt.tight_layout()
+    colorbar.ax.tick_params(labelsize=7)
+    ax.set_title(title, pad=8, fontsize=9.5)
+    ax.set_xlabel(x, fontsize=9)
+    ax.set_ylabel(y, fontsize=9)
+    ax.tick_params(labelsize=7)
+    plt.tight_layout(pad=0.5)
     plt.savefig(path)
     plt.close()
 
@@ -349,7 +415,7 @@ def plot_equilibrium_regions(results: pd.DataFrame) -> None:
     data = results[results["experiment"] == "equilibrium_region_grid"].copy()
     labels = data[["contract", "contract_label"]].drop_duplicates().set_index("contract")["contract_label"].to_dict()
     fig, axes = plt.subplots(2, 2, figsize=(11, 8), sharex=True, sharey=True)
-    for ax, contract in zip(axes.flat, sorted(labels)):
+    for ax, contract in zip(axes.flat, CONTRACT_ORDER):
         subset = data[data["contract"] == contract].copy()
         subset["outcome_code"] = subset["supplier_choice"].map(OUTCOME_CODE)
         pivot = subset.pivot_table(index="r", columns="q", values="outcome_code", aggfunc="mean").sort_index(ascending=False)
@@ -374,34 +440,71 @@ def plot_equilibrium_regions(results: pd.DataFrame) -> None:
     plt.close(fig)
 
 
+def plot_contract_choice_heatmap(
+    data: pd.DataFrame,
+    x: str,
+    y: str,
+    title: str,
+    path: Path,
+) -> None:
+    frame = data.copy()
+    frame["contract_code"] = frame["optimal_contract"].map(CONTRACT_CODE)
+    pivot = frame.pivot_table(index=y, columns=x, values="contract_code", aggfunc="first").sort_index(ascending=False)
+    plt.figure(figsize=(8, 5.6))
+    ax = sns.heatmap(
+        pivot,
+        cmap=sns.color_palette(CONTRACT_COLORS, as_cmap=True),
+        vmin=0,
+        vmax=3,
+        cbar_kws={"ticks": [0.375, 1.125, 1.875, 2.625]},
+        xticklabels=4,
+        yticklabels=4,
+        linewidths=0.0,
+    )
+    colorbar = ax.collections[0].colorbar
+    colorbar.set_ticklabels(["Basic", "Incentive", "Audit", "Hybrid"])
+    ax.set_title(title, pad=12)
+    ax.set_xlabel(x)
+    ax.set_ylabel(y)
+    plt.tight_layout()
+    plt.savefig(path)
+    plt.close()
+
+
 def plot_contract_comparison(results: pd.DataFrame) -> None:
     base = results[results["experiment"] == "base_grid"].copy()
     summary = base.groupby(["contract", "contract_label", "supplier_choice"]).size().reset_index(name="count")
     summary["share"] = summary["count"] / summary.groupby(["contract", "contract_label"])["count"].transform("sum")
+    label_order = [base.loc[base["contract"] == contract, "contract_label"].iloc[0] for contract in CONTRACT_ORDER]
     pivot = summary.pivot_table(index="contract_label", columns="supplier_choice", values="share", fill_value=0)
     for col in ["none", "low", "high"]:
         if col not in pivot:
             pivot[col] = 0
-    pivot = pivot[["none", "low", "high"]]
+    pivot = pivot.reindex(label_order)[["none", "low", "high"]]
     payoff = base.groupby("contract_label")["buyer_payoff"].mean().reindex(pivot.index)
 
-    fig, ax1 = plt.subplots(figsize=(9, 5.5))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.8), width_ratios=[1.2, 0.9])
     bottom = np.zeros(len(pivot))
     x = np.arange(len(pivot))
     for col, color in zip(["none", "low", "high"], OUTCOME_COLORS):
         ax1.bar(x, pivot[col].values, bottom=bottom, color=color, label=OUTCOME_LABELS[OUTCOME_CODE[col]])
         bottom += pivot[col].values
     ax1.set_xticks(x)
-    ax1.set_xticklabels(pivot.index, rotation=0)
+    ax1.set_xticklabels(pivot.index, rotation=18, ha="right")
     ax1.set_ylim(0, 1)
     ax1.set_ylabel("Share of supplier outcomes")
-    ax2 = ax1.twinx()
-    ax2.plot(x, payoff.values, color="#222222", marker="o", linewidth=2.0, label="Buyer payoff")
-    ax2.set_ylabel("Mean buyer payoff")
+    ax1.set_title("Supplier outcomes")
     ax1.legend(loc="upper left", frameon=False)
-    ax2.legend(loc="upper right", frameon=False)
-    ax1.set_title("Contract Performance Across Baseline Grid")
-    fig.tight_layout()
+
+    payoff_colors = [CONTRACT_COLORS[CONTRACT_CODE[contract]] for contract in CONTRACT_ORDER]
+    ax2.bar(x, payoff.values, color=payoff_colors)
+    ax2.axhline(0, color="#333333", linewidth=0.8)
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(pivot.index, rotation=18, ha="right")
+    ax2.set_ylabel("Mean buyer payoff")
+    ax2.set_title("Buyer payoff")
+    fig.suptitle("Contract Performance Across Baseline Grid", y=0.98)
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
     fig.savefig(FIGURE_DIR / "fig_contract_comparison.pdf")
     plt.close(fig)
 
@@ -415,9 +518,11 @@ def main() -> None:
     results = ensure_inputs()
 
     write_model_parameter_table(model)
+    write_contract_parameter_table(model)
     write_taxonomy_table()
     write_literature_summary_table()
     write_contract_comparison_table(results)
+    write_buyer_choice_summary_table(results)
     write_managerial_implications_table()
 
     plot_game_tree()
@@ -435,6 +540,20 @@ def main() -> None:
         "S",
         "Supplier Capability vs Buyer Support",
         FIGURE_DIR / "fig_capability_support_heatmap.pdf",
+    )
+    plot_contract_choice_heatmap(
+        results[results["experiment"] == "buyer_choice_region"],
+        "q",
+        "R",
+        "Buyer-Optimal Contract by Capability and Circularity Value",
+        FIGURE_DIR / "fig_buyer_choice_region.pdf",
+    )
+    plot_contract_choice_heatmap(
+        results[results["experiment"] == "governance_cost_sensitivity"],
+        "k",
+        "m",
+        "Buyer-Optimal Contract by Support and Confidentiality Costs",
+        FIGURE_DIR / "fig_governance_cost_sensitivity.pdf",
     )
     plot_contract_comparison(results)
     print(f"Wrote tables to {TABLE_DIR} and figures to {FIGURE_DIR}")
