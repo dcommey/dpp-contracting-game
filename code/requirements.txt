@@ -1,0 +1,10 @@
+pandas
+numpy
+sympy
+matplotlib
+seaborn
+networkx
+pyyaml
+requests
+bibtexparser
+tqdm

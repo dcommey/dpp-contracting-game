@@ -1,0 +1,6 @@
+.venv/
+lit/
+paper/
+__pycache__/
+.DS_Store
+*.pyc

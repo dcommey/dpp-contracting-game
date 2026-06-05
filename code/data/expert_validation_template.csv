@@ -1,0 +1,4 @@
+respondent_id,expert_role,organization_type,years_experience,clause_category,relevance_rating_1_5,clarity_rating_1_5,implementation_difficulty_1_5,comments,template_status
+TEMPLATE-001,supply_chain_manager,buyer,0,Data disclosure requirements,,,,,template_only_no_validation_conducted
+TEMPLATE-002,procurement_counsel,buyer,0,Verification and audit rights,,,,,template_only_no_validation_conducted
+TEMPLATE-003,supplier_sustainability_lead,supplier,0,Supplier support and capability-building,,,,,template_only_no_validation_conducted

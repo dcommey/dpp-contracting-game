@@ -1,0 +1,91 @@
+model: sequential_buyer_supplier_dpp_contracting_game
+parameters:
+  c: 5.0
+  q: 0.6
+  r: 1.5
+  p: 0.05
+  F: 1.0
+  B: 0.25
+  S: 0.0
+  R: 12.0
+  L: 5.0
+  v: 1.0
+  g: 0.8
+  k: 0.0
+  alpha: 1.4
+  lam: 0.45
+  beta: 0.35
+  eta_penalty: 0.2
+  r_low_share: 0.35
+  confidentiality: 0.1
+  B_L: 0.1
+  contract_value: 7.0
+  outside_option: 5.4
+descriptions:
+  c: Supplier baseline cost of collecting, structuring, and validating high-quality
+    DPP data.
+  q: Supplier data capability/readiness level.
+  r: Supplier commercial or IP risk from disclosure.
+  p: Probability of buyer audit or verification.
+  F: Penalty if low-quality disclosure is detected.
+  B: Buyer premium or preferred-supplier benefit for high-quality disclosure.
+  S: Buyer support or subsidy for supplier capability-building.
+  R: Buyer value from high-quality DPP data.
+  L: Buyer loss from poor data, circularity failure, or non-compliance.
+  v: Buyer verification/audit cost.
+  g: Supplier reputational gain from verified high-quality disclosure.
+  k: Unit cost to the buyer of providing supplier support.
+  alpha: Effectiveness of buyer support in reducing supplier disclosure cost.
+  lam: Low-quality disclosure cost share relative to high-quality disclosure cost.
+  beta: Residual buyer value from low-quality or partial DPP data.
+  eta_penalty: Share of expected penalties that offsets buyer losses as recoverable
+    damages.
+  r_low_share: Commercial/IP risk share under low-quality disclosure.
+  confidentiality: Strength of confidentiality and access-control protections.
+  B_L: Supplier benefit from low-quality disclosure, such as continued transaction
+    access.
+  contract_value: Supplier gross value from retaining the buyer relationship.
+  outside_option: Supplier payoff from non-disclosure and alternative opportunities.
+contracts:
+  basic_compliance:
+    label: Basic compliance
+    p: 0.05
+    F: 1.0
+    B: 0.25
+    B_L: 0.1
+    S: 0.0
+    k: 0.0
+    confidentiality: 0.1
+  incentive_only:
+    label: Incentive-only
+    p: 0.08
+    F: 1.5
+    B: 2.4
+    B_L: 0.4
+    S: 0.0
+    k: 0.0
+    confidentiality: 0.2
+  audit_penalty:
+    label: Audit/penalty
+    p: 0.45
+    F: 7.0
+    B: 0.35
+    B_L: 0.05
+    S: 0.0
+    k: 0.0
+    confidentiality: 0.15
+  hybrid_support:
+    label: Hybrid
+    p: 0.32
+    F: 5.0
+    B: 1.8
+    B_L: 0.2
+    S: 1.6
+    k: 0.8
+    confidentiality: 0.55
+cost_functions:
+  high_quality_disclosure_cost: C_H = c / (q + alpha*S)
+  low_quality_disclosure_cost: C_L = lambda*C_H
+  expected_penalty_low_quality: p*F
+  commercial_risk_high: r_H = r*(1-confidentiality)
+  commercial_risk_low: r_L = r_low_share*r_H
