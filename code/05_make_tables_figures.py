@@ -294,6 +294,77 @@ def write_buyer_choice_summary_table(results: pd.DataFrame) -> None:
     (TABLE_DIR / "table_monte_carlo_buyer_choice.tex").write_text(table, encoding="utf-8")
 
 
+def write_buyer_comparison_table() -> None:
+    rows = [
+        (
+            "Hybrid $H$ vs. alternative $N$",
+            "$R+L \\geq B_H+A_H+K_H+M_H$",
+            "Hybrid-induced high-quality disclosure is worthwhile only when DPP value plus avoided loss covers hybrid governance cost.",
+        ),
+        (
+            "Hybrid $H$ vs. incentive $H$",
+            "$B_H+A_H+K_H+M_H \\leq B_I+A_I+K_I+M_I$",
+            "If both contracts induce high-quality disclosure, the buyer prefers the lower-cost implementation package.",
+        ),
+        (
+            "Hybrid $H$ vs. audit $LQ$",
+            "$(1-\\beta)R+L+A_A+B_{L,A}+K_A+M_A \\geq B_H+A_H+K_H+M_H+\\eta p_AF_A$",
+            "Hybrid beats audit-induced partial disclosure when the added circularity value and avoided low-quality loss exceed the net extra cost.",
+        ),
+        (
+            "Hybrid $H$ vs. basic $LQ$",
+            "$(1-\\beta)R+L+A_B+B_{L,B}+K_B+M_B \\geq B_H+A_H+K_H+M_H+\\eta p_BF_B$",
+            "Hybrid beats basic compliance when complete data value offsets the extra incentive, audit, support, and confidentiality costs.",
+        ),
+        (
+            "Audit $LQ$ vs. incentive $H$",
+            "$(1-\\beta)R+L+B_{L,A}+A_A+K_A+M_A-\\eta p_AF_A \\leq B_I+A_I+K_I+M_I$",
+            "Audit-induced partial disclosure is buyer-preferred only when the cost of inducing high-quality disclosure is larger than the residual-value loss.",
+        ),
+    ]
+    table = latex_table(
+        ["Comparison", "Buyer-preference condition", "Interpretation"],
+        rows,
+        "Buyer-side contract comparison conditions.",
+        "tab:buyer_contract_comparisons",
+        widths=[0.22, 0.39, 0.31],
+        raw_columns={0, 1},
+        wide=True,
+    )
+    (TABLE_DIR / "table_buyer_contract_comparisons.tex").write_text(table, encoding="utf-8")
+
+
+def write_targeted_robustness_table(results: pd.DataFrame) -> None:
+    data = results[results["experiment"] == "targeted_robustness"].copy()
+    rows = []
+    for _, group in data.groupby("scenario_order", sort=True):
+        optimal = group[group["is_optimal"] == True]  # noqa: E712
+        best = optimal.iloc[0]
+        hybrid = group[group["contract"] == "hybrid_support"].iloc[0]
+        best_label = best["contract_label"]
+        if len(optimal) > 1:
+            best_label = f"{best_label} (tie)"
+        rows.append(
+            (
+                best["scenario_label"],
+                best["scenario_note"],
+                best_label,
+                str(best["supplier_choice"]).capitalize(),
+                f"{float(best['buyer_payoff']):.2f}",
+                f"{float(hybrid['buyer_payoff']):.2f}",
+            )
+        )
+    table = latex_table(
+        ["Robustness case", "Perturbation", "Buyer-optimal contract", "Response", "Best payoff", "Hybrid payoff"],
+        rows,
+        "Targeted robustness cases where the buyer need not prefer hybrid support.",
+        "tab:targeted_robustness",
+        widths=[0.17, 0.27, 0.16, 0.09, 0.09, 0.09],
+        wide=True,
+    )
+    (TABLE_DIR / "table_targeted_robustness.tex").write_text(table, encoding="utf-8")
+
+
 def write_managerial_implications_table() -> None:
     rows = [
         (
@@ -523,6 +594,8 @@ def main() -> None:
     write_literature_summary_table()
     write_contract_comparison_table(results)
     write_buyer_choice_summary_table(results)
+    write_buyer_comparison_table()
+    write_targeted_robustness_table(results)
     write_managerial_implications_table()
 
     plot_game_tree()

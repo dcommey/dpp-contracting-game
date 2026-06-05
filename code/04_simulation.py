@@ -178,6 +178,89 @@ def buyer_choice_results(model) -> list[Dict[str, float | str]]:
     return rows
 
 
+def targeted_robustness_results(model) -> list[Dict[str, float | str]]:
+    """Selected robustness cases that stress-test hybrid dominance."""
+
+    scenarios = [
+        {
+            "scenario": "no_support_hybrid",
+            "scenario_label": "Hybrid no support",
+            "scenario_note": "Set hybrid support to zero for a low-capability supplier.",
+            "overrides": {"q": 0.45, "c": 6.5, "r": 2.5, "R": 12.0, "L": 5.0, "outside_option": 5.0},
+            "contract_overrides": {"hybrid_support": {"S": 0.0}},
+        },
+        {
+            "scenario": "high_governance_cost",
+            "scenario_label": "High governance cost",
+            "scenario_note": "Raise buyer costs for support and confidentiality protection.",
+            "overrides": {"q": 0.35, "c": 7.0, "r": 3.2, "R": 5.0, "L": 3.5, "k": 8.0, "m": 3.0, "outside_option": 5.4},
+            "contract_overrides": {},
+        },
+        {
+            "scenario": "low_support_effectiveness",
+            "scenario_label": "Low support effectiveness",
+            "scenario_note": "Reduce alpha so support barely lowers disclosure cost.",
+            "overrides": {"q": 0.35, "c": 7.0, "r": 3.0, "R": 10.0, "L": 4.5, "alpha": 0.25, "outside_option": 5.0},
+            "contract_overrides": {},
+        },
+        {
+            "scenario": "high_relationship_value",
+            "scenario_label": "High relationship value",
+            "scenario_note": "Increase relationship value so support is less necessary.",
+            "overrides": {"q": 0.90, "c": 4.5, "r": 0.8, "R": 9.0, "L": 4.0, "contract_value": 10.0, "outside_option": 4.0},
+            "contract_overrides": {},
+        },
+        {
+            "scenario": "high_capability",
+            "scenario_label": "High capability",
+            "scenario_note": "Raise capability so supplier support has low marginal value.",
+            "overrides": {"q": 1.20, "c": 3.5, "r": 0.8, "R": 9.0, "L": 4.0, "outside_option": 4.2},
+            "contract_overrides": {},
+        },
+        {
+            "scenario": "sufficient_incentives",
+            "scenario_label": "Incentives sufficient",
+            "scenario_note": "Use moderate risk and high governance costs where incentives induce H.",
+            "overrides": {
+                "q": 0.862,
+                "c": 3.186,
+                "r": 0.308,
+                "R": 10.560,
+                "L": 5.872,
+                "v": 0.482,
+                "k": 3.611,
+                "m": 5.631,
+                "alpha": 1.576,
+                "contract_value": 7.064,
+                "outside_option": 6.049,
+            },
+            "contract_overrides": {},
+        },
+    ]
+
+    rows: list[Dict[str, float | str]] = []
+    for order, scenario in enumerate(scenarios, start=1):
+        evaluated = []
+        for contract in model.CONTRACTS:
+            overrides = dict(scenario["overrides"])
+            overrides.update(scenario["contract_overrides"].get(contract, {}))
+            result = model.evaluate_contract(contract, overrides=overrides)
+            result["experiment"] = "targeted_robustness"
+            result["scenario_order"] = order
+            result["scenario"] = scenario["scenario"]
+            result["scenario_label"] = scenario["scenario_label"]
+            result["scenario_note"] = scenario["scenario_note"]
+            result.update(overrides)
+            evaluated.append(result)
+        best_payoff = max(float(row["buyer_payoff"]) for row in evaluated)
+        for result in evaluated:
+            result["optimal_contract"] = ""
+            result["is_optimal"] = abs(float(result["buyer_payoff"]) - best_payoff) <= 1e-9
+            rows.append(result)
+
+    return rows
+
+
 def main() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     model = load_model_module()
@@ -185,6 +268,7 @@ def main() -> None:
     rows = base_grid_results(model)
     rows.extend(heatmap_results(model))
     rows.extend(buyer_choice_results(model))
+    rows.extend(targeted_robustness_results(model))
     results = pd.DataFrame(rows)
     results.to_csv(DATA_DIR / "simulation_results.csv", index=False)
     print(f"Wrote {len(results):,} simulation rows to {DATA_DIR / 'simulation_results.csv'}")
