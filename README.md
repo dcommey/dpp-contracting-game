@@ -6,6 +6,8 @@ Code and data for the paper:
 
 The scripts define the buyer-supplier game, derive equilibrium conditions, run the simulations, and rebuild the tables and figures used in the manuscript.
 
+The self-contained manuscript source for Overleaf is in `dpp_contracting_game_overleaf_v2/`.
+
 ## Run
 
 ```bash
@@ -17,6 +19,7 @@ python code/02_model_setup.py
 python code/03_equilibrium_analysis.py
 python code/04_simulation.py
 python code/05_make_tables_figures.py
+python code/06_publication_figures.py
 ```
 
 The literature search script is separate because it calls external scholarly APIs:

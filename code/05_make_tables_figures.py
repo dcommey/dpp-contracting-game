@@ -40,6 +40,52 @@ CONTRACT_ORDER = ["basic_compliance", "incentive_only", "audit_penalty", "hybrid
 CONTRACT_CODE = {name: index for index, name in enumerate(CONTRACT_ORDER)}
 CONTRACT_COLORS = ["#8f8f8f", "#d8a24a", "#4f7aa8", "#3b8f6b"]
 
+PARAMETER_LABELS = {
+    "c": "$c$",
+    "cost_form": "Cost specification",
+    "cost_floor": "$\\underline{C}$",
+    "gamma": "$\\gamma$",
+    "q": "$q$",
+    "r": "$r$",
+    "p": "$p$",
+    "F": "$F$",
+    "F_bar": "$\\bar{F}$",
+    "B": "$B$",
+    "S": "$S$",
+    "S_bar": "$\\bar{S}$",
+    "R": "$R$",
+    "L": "$L$",
+    "v": "$v$",
+    "g": "$g$",
+    "k": "$k$",
+    "m": "$m$",
+    "alpha": "$\\alpha$",
+    "lam": "$\\lambda$",
+    "beta": "$\\beta$",
+    "eta_penalty": "$\\eta$",
+    "r_low_share": "$\\rho$",
+    "confidentiality": "$\\phi$",
+    "B_L": "$B_L$",
+    "contract_value": "$V$",
+    "outside_option": "$O$",
+}
+
+MODEL_LINK_LABELS = {
+    "disclosure": "Disclosure duty",
+    "C_H;C_L": "$C_H; C_L$",
+    "r": "$r$",
+    "C_H": "$C_H$",
+    "R": "$R$",
+    "p;v": "$p; v$",
+    "p;v;g": "$p; v; g$",
+    "F": "$F$",
+    "B": "$B$",
+    "C_H;R": "$C_H; R$",
+    "S;alpha;q": "$S; \\alpha; q$",
+    "R;L": "$R; L$",
+    "outside option; B": "$O; B$",
+}
+
 
 def load_module(file_name: str, module_name: str):
     spec = importlib.util.spec_from_file_location(module_name, CODE_DIR / file_name)
@@ -114,13 +160,14 @@ def write_model_parameter_table(model) -> None:
     params = model.ModelParameters()
     rows = []
     for key, description in model.PARAMETER_DESCRIPTIONS.items():
-        rows.append((key, getattr(params, key), description))
+        rows.append((PARAMETER_LABELS.get(key, key), getattr(params, key), description))
     table = latex_table(
         ["Parameter", "Default", "Interpretation"],
         rows,
         "Model parameters and default values.",
         "tab:model_parameters",
         widths=[0.16, 0.14, 0.62],
+        raw_columns={0},
         wide=True,
     )
     (TABLE_DIR / "table_model_parameters.tex").write_text(table, encoding="utf-8")
@@ -155,7 +202,16 @@ def write_contract_parameter_table(model) -> None:
 
 def write_taxonomy_table() -> None:
     taxonomy = pd.read_csv(DATA_DIR / "contract_clause_taxonomy.csv")
-    rows = taxonomy[["category", "contract_function", "model_parameter_link", "governance_rationale"]].values.tolist()
+    rows = []
+    for row in taxonomy[["category", "contract_function", "model_parameter_link", "governance_rationale"]].to_dict("records"):
+        rows.append(
+            [
+                row["category"],
+                row["contract_function"],
+                MODEL_LINK_LABELS.get(row["model_parameter_link"], row["model_parameter_link"]),
+                row["governance_rationale"],
+            ]
+        )
     lines = [
         "\\begin{table*}[t]",
         "\\centering",
@@ -170,7 +226,8 @@ def write_taxonomy_table() -> None:
         "\\midrule",
     ]
     for row in rows:
-        lines.append(" & ".join(escape_latex(cell) for cell in row) + " \\\\")
+        cells = [escape_latex(row[0]), escape_latex(row[1]), str(row[2]), escape_latex(row[3])]
+        lines.append(" & ".join(cells) + " \\\\")
     lines.extend(["\\bottomrule", "\\end{tabular}", "\\endgroup", "\\end{table*}", ""])
     table = "\n".join(lines)
     (TABLE_DIR / "table_contract_clause_taxonomy.tex").write_text(table, encoding="utf-8")

@@ -4,3 +4,15 @@ paper/
 __pycache__/
 .DS_Store
 *.pyc
+*.zip
+zit*
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.spl
+*.synctex.gz
+dpp_contracting_game_overleaf_v2/main.pdf
